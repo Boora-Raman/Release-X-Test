@@ -1,45 +1,35 @@
-name: Wanderlust CI Pipeline
+name: Release-X CI Pipeline
 
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "kubernetes/**"
 
   pull_request:
     branches:
       - main
 
-  workflow_dispatch:
-    inputs:
-      frontend_docker_tag:
-        description: "Frontend Docker Image Tag"
-        required: false
-        default: latest
-      backend_docker_tag:
-        description: "Backend Docker Image Tag"
-        required: false
-        default: latest
+permissions:
+  contents: read
 
 jobs:
-
   ci:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-
-    env:
-      FRONTEND_TAG: ${{ github.event.inputs.frontend_docker_tag || 'latest' }}
-      BACKEND_TAG: ${{ github.event.inputs.backend_docker_tag || 'latest' }}
 
     steps:
 
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ---------- Security Scans ----------
+      # ---------------- Security Scans ----------------
 
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@v0.2.0
 
-      - name: Trivy Filesystem Scan
+      - name: Run Trivy Scan
         continue-on-error: true
         run: |
           trivy fs . \
@@ -51,32 +41,25 @@ jobs:
         continue-on-error: true
         uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: "wanderlust"
-          path: "."
-          format: "HTML"
+          project: wanderlust
+          path: .
+          format: HTML
           out: dependency-check-report
 
-      # ---------- Code Quality ----------
+      # ---------------- SonarQube ----------------
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v2
+        with:
+          args: >
+            -Dsonar.projectKey=wanderlust
+            -Dsonar.projectName=wanderlust
+            -Dsonar.sources=backend,frontend
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      # ---------- Environment Setup ----------
-
-      - name: Backend Environment Setup
-        run: |
-          cd Automations
-          bash updatebackendnew.sh
-
-      - name: Frontend Environment Setup
-        run: |
-          cd Automations
-          bash updatefrontendnew.sh
-
-      # ---------- Docker Login ----------
+      # ---------------- Docker Build ----------------
 
       - name: Docker Login
         if: github.event_name != 'pull_request'
@@ -85,29 +68,29 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # ---------- Build Images ----------
-
-      - name: Build Backend Docker Image
+      - name: Build Backend Image
         run: |
-          docker build -t booraraman/wanderlust-backend-beta:${BACKEND_TAG} ./backend
+          docker build \
+          -t booraraman/wanderlust-backend-beta:${{ github.sha }} \
+          ./backend
 
-      - name: Build Frontend Docker Image
+      - name: Build Frontend Image
         run: |
-          docker build -t booraraman/wanderlust-frontend-beta:${FRONTEND_TAG} ./frontend
-
-      # ---------- Push Images ----------
+          docker build \
+          -t booraraman/wanderlust-frontend-beta:${{ github.sha }} \
+          ./frontend
 
       - name: Push Backend Image
         if: github.event_name != 'pull_request'
         run: |
-          docker push booraraman/wanderlust-backend-beta:${BACKEND_TAG}
+          docker push booraraman/wanderlust-backend-beta:${{ github.sha }}
 
       - name: Push Frontend Image
         if: github.event_name != 'pull_request'
         run: |
-          docker push booraraman/wanderlust-frontend-beta:${FRONTEND_TAG}
+          docker push booraraman/wanderlust-frontend-beta:${{ github.sha }}
 
-      # ---------- Upload Security Reports ----------
+      # ---------------- Upload Reports ----------------
 
       - name: Upload Security Reports
         uses: actions/upload-artifact@v4
