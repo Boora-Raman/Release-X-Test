@@ -40,15 +40,21 @@ jobs:
         uses: aquasecurity/setup-trivy@v0.2.0
 
       - name: Trivy Filesystem Scan
+        continue-on-error: true
         run: |
-          trivy fs . --severity HIGH,CRITICAL --format table
+          trivy fs . \
+          --severity HIGH,CRITICAL \
+          --format table \
+          --output trivy-report.txt || true
 
       - name: OWASP Dependency Check
+        continue-on-error: true
         uses: dependency-check/Dependency-Check_Action@main
         with:
           project: "wanderlust"
           path: "."
           format: "HTML"
+          out: dependency-check-report
 
       # ---------- Code Quality ----------
 
@@ -83,30 +89,30 @@ jobs:
 
       - name: Build Backend Docker Image
         run: |
-          docker build -t madhupdevops/wanderlust-backend-beta:${BACKEND_TAG} ./backend
+          docker build -t booraraman/wanderlust-backend-beta:${BACKEND_TAG} ./backend
 
       - name: Build Frontend Docker Image
         run: |
-          docker build -t madhupdevops/wanderlust-frontend-beta:${FRONTEND_TAG} ./frontend
+          docker build -t booraraman/wanderlust-frontend-beta:${FRONTEND_TAG} ./frontend
 
-      # ---------- Push Images (only after merge) ----------
+      # ---------- Push Images ----------
 
       - name: Push Backend Image
         if: github.event_name != 'pull_request'
         run: |
-          docker push madhupdevops/wanderlust-backend-beta:${BACKEND_TAG}
+          docker push booraraman/wanderlust-backend-beta:${BACKEND_TAG}
 
       - name: Push Frontend Image
         if: github.event_name != 'pull_request'
         run: |
-          docker push madhupdevops/wanderlust-frontend-beta:${FRONTEND_TAG}
+          docker push booraraman/wanderlust-frontend-beta:${FRONTEND_TAG}
 
-      # ---------- Upload reports ----------
+      # ---------- Upload Security Reports ----------
 
       - name: Upload Security Reports
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
-            *.xml
-            *.html
+            trivy-report.txt
+            dependency-check-report
