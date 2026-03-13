@@ -1,0 +1,50 @@
+name:  GitOps Update
+
+on:
+  workflow_run:
+    workflows: ["Release-X CI Pipeline"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+
+  update-manifests:
+    runs-on: ubuntu-latest
+
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Image Tag
+        run: |
+          echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+
+      - name: Update Backend Manifest
+        run: |
+          sed -i "s|image: booraraman/wanderlust-backend-beta:.*|image: booraraman/wanderlust-backend-beta:${IMAGE_TAG}|g" kubernetes/backend.yaml
+
+      - name: Update Frontend Manifest
+        run: |
+          sed -i "s|image: booraraman/wanderlust-frontend-beta:.*|image: booraraman/wanderlust-frontend-beta:${IMAGE_TAG}|g" kubernetes/frontend.yaml
+
+      - name: Commit Changes
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+
+          git add kubernetes/backend.yaml
+          git add kubernetes/frontend.yaml
+
+          git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+
+      - name: Push Changes
+        run: |
+          git push
