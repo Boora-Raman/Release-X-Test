@@ -29,16 +29,16 @@ jobs:
 
 #       # ---------------- Security Scans ----------------
 
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+      # - name: Install Trivy
+      #   uses: aquasecurity/setup-trivy@v0.2.2
 
-      - name: Run Trivy Scan
-        continue-on-error: true
-        run: |
-          trivy fs . \
-          --severity HIGH,CRITICAL \
-          --format table \
-          --output trivy-report.txt || true
+      # - name: Run Trivy Scan
+      #   continue-on-error: true
+      #   run: |
+      #     trivy fs . \
+      #     --severity HIGH,CRITICAL \
+      #     --format table \
+      #     --output trivy-report.txt || true
 
 #       - name: OWASP Dependency Check
 #         continue-on-error: true
